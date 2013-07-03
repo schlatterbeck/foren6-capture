@@ -123,6 +123,7 @@ static bool sniffer_interface_start(ifreader_t handle) {
 static void sniffer_interface_stop(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
 	desc_poll_del(descriptor->serial_line);
+	fprintf(stderr, "Stopped interface\n");
 }
 
 static void sniffer_interface_close(ifreader_t handle) {
@@ -138,18 +139,17 @@ static void sniffer_interface_close(ifreader_t handle) {
 static void process_input(int fd, void* handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
 	
-	//Pars input until there is no more data to parse
+	//Read input until our buffer is full or there is no more data to read
+	while(read_input(descriptor) == true);
+	
+	
+	//Parse input until there is no more data to parse
 	do {
 		
-/*
 		if(descriptor->last_state != descriptor->current_state)
 			fprintf(stderr, "state changed, %d -> %d\n", descriptor->last_state, descriptor->current_state);
-*/
 
 		descriptor->before_switch_state = descriptor->current_state;
-	
-		//Read input until our buffer is full or there is no more data to read
-		while(read_input(descriptor) == true);
 
 		switch(descriptor->current_state) {
 			case PRS_Magic:
