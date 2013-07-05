@@ -15,6 +15,7 @@ $RECYCLE.BIN/
 #Project specific
 
 *.o
+bin
 build
 dist
 .dep.inc
