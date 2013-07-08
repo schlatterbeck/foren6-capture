@@ -146,8 +146,10 @@ static void process_input(int fd, void* handle) {
 	//Parse input until there is no more data to parse
 	do {
 		
+/*
 		if(descriptor->last_state != descriptor->current_state)
 			fprintf(stderr, "state changed, %d -> %d\n", descriptor->last_state, descriptor->current_state);
+*/
 
 		descriptor->before_switch_state = descriptor->current_state;
 
