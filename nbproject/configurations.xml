@@ -12,7 +12,7 @@
                    projectFiles="false"
                    kind="IMPORTANT_FILES_FOLDER">
       <itemPath>CMakeLists.txt</itemPath>
-      <itemPath>Makefile</itemPath>
+      <itemPath>build/Makefile</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceFolderFilter>^(nbproject|build|bin)$</sourceFolderFilter>
