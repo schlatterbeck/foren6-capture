@@ -27,16 +27,16 @@ static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *he
 
 interface_t interface_register() {
 	interface_t interface;
-	
+
 	memset(&interface, 0, sizeof(interface));
-	
+
 	interface.interface_name = interface_name;
 	interface.init = &interface_init;
 	interface.open = &interface_open;
 	interface.close = &interface_close;
 	interface.start = &interface_start;
 	interface.stop = &interface_stop;
-	
+
 	return interface;
 }
 
@@ -47,19 +47,21 @@ static void interface_init() {
 
 static ifreader_t interface_open(const char *target) {
 	interface_handle_t *handle;
+	char errbuf[PCAP_ERRBUF_SIZE];
 
 	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
 		return NULL;
-	
+
 	handle->capture_packets = false;
-	
-	handle->pc = pcap_open_offline(target, NULL);
+
+	handle->pc = pcap_open_offline(target, errbuf);
 	if(handle->pc == NULL) {
+		fprintf(stderr, "Cannot open target %s: %s\n", target, errbuf);
 		free(handle);
 		return NULL;
 	}
-	
+
 	return handle;
 }
 
@@ -76,13 +78,12 @@ static void interface_stop(ifreader_t handle) {
 	if(descriptor->capture_packets == true) {
 		descriptor->capture_packets = false;
 		pthread_join(descriptor->thread, NULL);
-		fprintf(stderr, "Stopped interface\n");
 	}
 }
 
 static void interface_close(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
-	
+
 	interface_stop(handle);
 
 	pcap_close(descriptor->pc);
@@ -91,10 +92,15 @@ static void interface_close(ifreader_t handle) {
 
 static void* interface_thread_process_input(void *data) {
 	interface_handle_t *descriptor = (interface_handle_t*)data;
-	
+	int pcap_result;
+
+	fprintf(stderr, "PCAP reader started\n");
+
 	while(1) {
-		pcap_loop(descriptor->pc, 1, &interface_packet_handler, NULL);
-		if(!descriptor->capture_packets) {
+		pcap_result = pcap_loop(descriptor->pc, 1, &interface_packet_handler, NULL);
+		if(!descriptor->capture_packets || pcap_result < 0) {
+			fprintf(stderr, "PCAP reader stopped\n");
+			pcap_perror(descriptor->pc, "PCAP end result");
 			return NULL;
 		}
 	}

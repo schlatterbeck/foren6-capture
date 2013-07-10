@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <errno.h>
 
 static const char expected_magic[4] = "SNIF";
 static const unsigned char enable_sniffer_cmd[3] = { 0xFA, 0x3A, '\n' };
@@ -19,7 +20,7 @@ static const unsigned char enable_sniffer_cmd[3] = { 0xFA, 0x3A, '\n' };
 #define FIELD_RSSI       4
 #define FIELD_LQI        8
 #define FIELD_TIMESTAMP 16
-	
+
 typedef enum {
 	PRS_Magic,
 	PRS_Type,
@@ -36,14 +37,14 @@ typedef enum {
 typedef struct {
 	circular_buffer_t input_buffer;
 	int serial_line;
-	
+
 	//states
 	packet_read_state_e current_state;
 	packet_read_state_e last_state;
 	packet_read_state_e before_switch_state;
-	
+
 	//current packet data
-	
+
 	char           pkt_magic[4];
 	unsigned char  pkt_type;
 	unsigned char  pkt_len;
@@ -71,16 +72,16 @@ static void set_serial_attribs(int fd, int baudrate, int parity);
 
 interface_t interface_register() {
 	interface_t interface;
-	
+
 	memset(&interface, 0, sizeof(interface));
-	
+
 	interface.interface_name = "telos";
 	interface.init = &sniffer_interface_init;
 	interface.open = &sniffer_interface_open;
 	interface.close = &sniffer_interface_close;
 	interface.start = &sniffer_interface_start;
 	interface.stop = &sniffer_interface_stop;
-	
+
 	return interface;
 }
 
@@ -95,24 +96,24 @@ static ifreader_t sniffer_interface_open(const char *target) {
 	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
 		return NULL;
-	
+
 	fprintf(stderr, "Opening %s\n", target);
-	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC)) < 0) {
+	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) < 0) {
 		perror("Cannot open interface");
 		return;
 	}
-	
+
 	set_serial_attribs(handle->serial_line, B115200, 0);
-	
+
 	write(handle->serial_line, enable_sniffer_cmd, 3);	//Enable sniffer
 
 	handle->input_buffer = circular_buffer_create(32, 1);
 	if(handle->input_buffer == NULL)
 		fprintf(stderr, "FATAL: can't allocate input buffer\n");
-	
+
 	handle->current_state = PRS_Magic;
 	handle->last_state = PRS_Done;
-	
+
 }
 
 static bool sniffer_interface_start(ifreader_t handle) {
@@ -128,9 +129,9 @@ static void sniffer_interface_stop(ifreader_t handle) {
 
 static void sniffer_interface_close(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
-	
+
 	sniffer_interface_stop(handle);
-	
+
 	circular_buffer_delete(descriptor->input_buffer);
 	close(descriptor->serial_line);
 	free(descriptor);
@@ -138,14 +139,14 @@ static void sniffer_interface_close(ifreader_t handle) {
 
 static void process_input(int fd, void* handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
-	
+
 	//Read input until our buffer is full or there is no more data to read
 	while(read_input(descriptor) == true);
-	
-	
+
+
 	//Parse input until there is no more data to parse
 	do {
-		
+
 /*
 		if(descriptor->last_state != descriptor->current_state)
 			fprintf(stderr, "state changed, %d -> %d\n", descriptor->last_state, descriptor->current_state);
@@ -284,11 +285,20 @@ static void process_input(int fd, void* handle) {
 
 static bool read_input(interface_handle_t* descriptor) {
 	unsigned char data;
+	size_t nbread;
 
-	if(!circular_buffer_is_full(descriptor->input_buffer) && (read(descriptor->serial_line, &data, 1) == 1)) {
-		//fprintf(stderr, "Received data 0x%02X\n", data);
-		circular_buffer_push_front(descriptor->input_buffer, &data);
-		return true;
+	if(!circular_buffer_is_full(descriptor->input_buffer)) {
+		errno = 0;
+		nbread = read(descriptor->serial_line, &data, 1);
+		if(nbread == 1) {
+			//fprintf(stderr, "Received data 0x%02X\n", data);
+			circular_buffer_push_front(descriptor->input_buffer, &data);
+			return true;
+		} else if(nbread == 0 && errno != EAGAIN) {
+			sniffer_interface_stop(descriptor);
+			fprintf(stderr, "File read completed\n");
+			perror("Stop interface");
+		}
 	}
 
 	return false;
@@ -300,9 +310,9 @@ static bool can_read_byte(interface_handle_t* descriptor) {
 
 static unsigned char get_byte(interface_handle_t* descriptor) {
 	unsigned char *data;
-	
+
 	data = (unsigned char*) circular_buffer_pop_back(descriptor->input_buffer);
-	
+
 	if(data) {
 		//fprintf(stderr, "Read data from buffer 0x%02X\n", *data);
 		return *data;
@@ -334,7 +344,7 @@ static void set_serial_attribs(int fd, int baudrate, int parity)
 	tty.c_lflag = 0;                // no signaling chars, no echo,
 									// no canonical processing
 	tty.c_oflag = 0;                // no remapping, no delays
-	tty.c_cc[VMIN]  = 0;            // read doesn't block
+	tty.c_cc[VMIN]  = 1;            // read never return 0 because of no data available, O_NONBLOCK take care of that feature
 	tty.c_cc[VTIME] = 0;            // 0 seconds read timeout
 
 	tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
