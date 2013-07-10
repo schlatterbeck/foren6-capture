@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <pthread.h>
 
 static const char expected_magic[4] = "SNIF";
 static const unsigned char enable_sniffer_cmd[3] = { 0xFA, 0x3A, '\n' };
@@ -36,6 +37,7 @@ typedef enum {
 
 typedef struct {
 	circular_buffer_t input_buffer;
+	pthread_mutex_t mutex;
 	int serial_line;
 
 	//states
@@ -97,6 +99,8 @@ static ifreader_t sniffer_interface_open(const char *target) {
 	if(!handle)
 		return NULL;
 
+	pthread_mutex_init(&handle->mutex, NULL);
+
 	fprintf(stderr, "Opening %s\n", target);
 	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) < 0) {
 		perror("Cannot open interface");
@@ -132,13 +136,26 @@ static void sniffer_interface_close(ifreader_t handle) {
 
 	sniffer_interface_stop(handle);
 
+	pthread_mutex_lock(&descriptor->mutex);
+
 	circular_buffer_delete(descriptor->input_buffer);
 	close(descriptor->serial_line);
+
+	descriptor->serial_line = -1;
+
+	pthread_mutex_unlock(&descriptor->mutex);
+	pthread_mutex_destroy(&descriptor->mutex);
+
 	free(descriptor);
 }
 
 static void process_input(int fd, void* handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
+
+	if(pthread_mutex_lock(&descriptor->mutex) != 0)
+		return;
+	if(descriptor->serial_line == -1)
+		return;
 
 	//Read input until our buffer is full or there is no more data to read
 	while(read_input(descriptor) == true);
@@ -281,6 +298,8 @@ static void process_input(int fd, void* handle) {
 
 		descriptor->last_state = descriptor->before_switch_state;
 	} while(can_read_byte(descriptor));
+
+	pthread_mutex_unlock(&descriptor->mutex);
 }
 
 static bool read_input(interface_handle_t* descriptor) {
