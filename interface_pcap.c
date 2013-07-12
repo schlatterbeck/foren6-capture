@@ -71,6 +71,8 @@ static bool interface_start(ifreader_t handle) {
 		descriptor->capture_packets = true;
 		pthread_create(&descriptor->thread, NULL, &interface_thread_process_input, handle);
 	}
+
+	return true;
 }
 
 static void interface_stop(ifreader_t handle) {

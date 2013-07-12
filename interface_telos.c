@@ -104,7 +104,7 @@ static ifreader_t sniffer_interface_open(const char *target) {
 	fprintf(stderr, "Opening %s\n", target);
 	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) < 0) {
 		perror("Cannot open interface");
-		return;
+		return NULL;
 	}
 
 	set_serial_attribs(handle->serial_line, B115200, 0);
@@ -118,11 +118,12 @@ static ifreader_t sniffer_interface_open(const char *target) {
 	handle->current_state = PRS_Magic;
 	handle->last_state = PRS_Done;
 
+	return handle;
 }
 
 static bool sniffer_interface_start(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
-	desc_poll_add(descriptor->serial_line, &process_input, descriptor);
+	return desc_poll_add(descriptor->serial_line, &process_input, descriptor);
 }
 
 static void sniffer_interface_stop(ifreader_t handle) {
