@@ -1,4 +1,4 @@
-#include "interface_telos.h"
+#include "interface_snif.h"
 
 #include <circular_buffer.h>
 #include <sniffer_packet_parser.h>
@@ -14,7 +14,8 @@
 #include <pthread.h>
 
 static const char expected_magic[4] = "SNIF";
-static const unsigned char enable_sniffer_cmd[3] = { 0xFA, 0x3A, '\n' };
+static const unsigned char enable_sniffer_cmd = 0xFA;
+static const unsigned char disable_sniffer_cmd = 0xFB;
 
 #define FIELD_CRC        1
 #define FIELD_CRC_OK     2
@@ -61,7 +62,7 @@ typedef struct {
 } interface_handle_t; //*ifreader_t
 
 static void sniffer_interface_init();
-static ifreader_t sniffer_interface_open(const char *target);
+static ifreader_t sniffer_interface_open(const char *target, int channel);
 static bool sniffer_interface_start(ifreader_t handle);
 static void sniffer_interface_stop(ifreader_t handle);
 static void sniffer_interface_close(ifreader_t handle);
@@ -77,7 +78,7 @@ interface_t interface_register() {
 
 	memset(&interface, 0, sizeof(interface));
 
-	interface.interface_name = "telos";
+	interface.interface_name = "snif";
 	interface.init = &sniffer_interface_init;
 	interface.open = &sniffer_interface_open;
 	interface.close = &sniffer_interface_close;
@@ -92,8 +93,9 @@ static void sniffer_interface_init() {
 	fprintf(stderr, "telos interface initialized\n");
 }
 
-static ifreader_t sniffer_interface_open(const char *target) {
+static ifreader_t sniffer_interface_open(const char *target, int channel) {
 	interface_handle_t *handle;
+	char byte;
 
 	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
@@ -109,7 +111,11 @@ static ifreader_t sniffer_interface_open(const char *target) {
 
 	set_serial_attribs(handle->serial_line, B115200, 0);
 
-	write(handle->serial_line, enable_sniffer_cmd, 3);	//Enable sniffer
+	write(handle->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
+	byte = channel + 0x20;
+	write(handle->serial_line, &byte, 1);
+	byte = '\n';
+	write(handle->serial_line, &byte, 1);
 
 	handle->input_buffer = circular_buffer_create(32, 1);
 	if(handle->input_buffer == NULL)

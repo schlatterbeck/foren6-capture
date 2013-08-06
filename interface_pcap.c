@@ -18,7 +18,7 @@ typedef struct {
 } interface_handle_t; //*ifreader_t
 
 static void interface_init();
-static ifreader_t interface_open(const char *target);
+static ifreader_t interface_open(const char *target, int channel);
 static bool interface_start(ifreader_t handle);
 static void interface_stop(ifreader_t handle);
 static void interface_close(ifreader_t handle);
@@ -45,7 +45,7 @@ static void interface_init() {
 	fprintf(stderr, "%s interface initialized\n", interface_name);
 }
 
-static ifreader_t interface_open(const char *target) {
+static ifreader_t interface_open(const char *target, int channel) {
 	interface_handle_t *handle;
 	char errbuf[PCAP_ERRBUF_SIZE];
 
