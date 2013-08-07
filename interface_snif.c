@@ -90,7 +90,7 @@ interface_t interface_register() {
 
 static void sniffer_interface_init() {
 	desc_poll_init();
-	fprintf(stderr, "telos interface initialized\n");
+	fprintf(stderr, "snif interface initialized\n");
 }
 
 static ifreader_t sniffer_interface_open(const char *target, int channel) {
@@ -109,13 +109,16 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 		return NULL;
 	}
 
-	set_serial_attribs(handle->serial_line, B115200, 0);
+	//If it's a file, don't try to set any serial attribute nor write a sniffer command
+	if(isatty(handle->serial_line)) {
+		set_serial_attribs(handle->serial_line, B115200, 0);
 
-	write(handle->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
-	byte = channel + 0x20;
-	write(handle->serial_line, &byte, 1);
-	byte = '\n';
-	write(handle->serial_line, &byte, 1);
+		write(handle->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
+		byte = channel + 0x20;
+		write(handle->serial_line, &byte, 1);
+		byte = '\n';
+		write(handle->serial_line, &byte, 1);
+	}
 
 	handle->input_buffer = circular_buffer_create(32, 1);
 	if(handle->input_buffer == NULL)
