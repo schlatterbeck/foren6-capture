@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 static const char expected_magic[4] = "SNIF";
 static const unsigned char enable_sniffer_cmd = 0xFA;
@@ -57,6 +58,7 @@ typedef struct {
 	unsigned char  pkt_rssi;
 	unsigned char  pkt_lqi;
 	unsigned short pkt_timestamp;
+	struct timeval start_time;
 
 	int pkt_received_index;
 } interface_handle_t; //*ifreader_t
@@ -132,6 +134,7 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 
 static bool sniffer_interface_start(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	gettimeofday(&descriptor->start_time, NULL);
 	return desc_poll_add(descriptor->serial_line, &process_input, descriptor);
 }
 
@@ -300,7 +303,21 @@ static void process_input(int fd, void* handle) {
 
 			case PRS_Done:
 				if(descriptor->pkt_len > 0 && descriptor->pkt_crc_ok) {      //Discard bad packet and packet without data captured
-					sniffer_parser_parse_data(descriptor->pkt_data, descriptor->pkt_len);
+					struct timeval pkt_time;
+					if(descriptor->pkt_type & FIELD_TIMESTAMP) {
+						pkt_time.tv_sec = descriptor->pkt_timestamp;
+						pkt_time.tv_usec = 0;
+					} else {
+						gettimeofday(&pkt_time, NULL);
+						if(pkt_time.tv_usec < descriptor->start_time.tv_usec) {
+							pkt_time.tv_sec = pkt_time.tv_sec - descriptor->start_time.tv_sec - 1;
+							pkt_time.tv_usec = pkt_time.tv_usec + 1000000 - descriptor->start_time.tv_usec;
+						} else {
+							pkt_time.tv_sec = pkt_time.tv_sec - descriptor->start_time.tv_sec;
+							pkt_time.tv_usec = pkt_time.tv_usec - descriptor->start_time.tv_usec;
+						}
+					}
+					sniffer_parser_parse_data(descriptor->pkt_data, descriptor->pkt_len, pkt_time);
 				}
 				descriptor->current_state = PRS_Magic;
 				break;

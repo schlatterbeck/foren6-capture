@@ -110,6 +110,6 @@ static void* interface_thread_process_input(void *data) {
 
 static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data) {
 	if(header->caplen == header->len)
-		sniffer_parser_parse_data(pkt_data, header->caplen-2);  //Never include the FCS in packets
-	else sniffer_parser_parse_data(pkt_data, header->caplen);
+		sniffer_parser_parse_data(pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
+	else sniffer_parser_parse_data(pkt_data, header->caplen, header->ts);
 }
