@@ -99,8 +99,8 @@ static void* interface_thread_process_input(void *data) {
 	fprintf(stderr, "PCAP reader started\n");
 
 	while(1) {
-		pcap_result = pcap_loop(descriptor->pc, 1, &interface_packet_handler, NULL);
-		if(!descriptor->capture_packets || pcap_result < 0) {
+		pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, NULL);
+		if(!descriptor->capture_packets || pcap_result < 1) {
 			fprintf(stderr, "PCAP reader stopped\n");
 			pcap_perror(descriptor->pc, "PCAP end result");
 			return NULL;
