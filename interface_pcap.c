@@ -100,11 +100,13 @@ static void* interface_thread_process_input(void *data) {
 
 	while(1) {
 		pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, NULL);
-		if(!descriptor->capture_packets || pcap_result < 1) {
+		if(!descriptor->capture_packets || pcap_result < 0) {
 			fprintf(stderr, "PCAP reader stopped\n");
 			pcap_perror(descriptor->pc, "PCAP end result");
 			return NULL;
 		}
+		if(pcap_result == 0)
+			usleep(100000);
 	}
 }
 

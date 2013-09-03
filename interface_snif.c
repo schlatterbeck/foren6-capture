@@ -167,7 +167,7 @@ static void process_input(int fd, void* handle) {
 
 	if(pthread_mutex_lock(&descriptor->mutex) != 0)
 		return;
-	if(descriptor->serial_line == -1)
+	if(descriptor->serial_line < 0)
 		return;
 
 	//Read input until our buffer is full or there is no more data to read
