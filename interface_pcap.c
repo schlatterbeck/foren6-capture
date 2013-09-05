@@ -25,6 +25,10 @@ static void interface_close(ifreader_t handle);
 static void *interface_thread_process_input(void *data);
 static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
 
+int interface_get_version() {
+	return 1;
+}
+
 interface_t interface_register() {
 	interface_t interface;
 
@@ -46,6 +50,7 @@ static void interface_init() {
 }
 
 static ifreader_t interface_open(const char *target, int channel) {
+	ifreader_t instance = interfacemgr_create_handle();
 	interface_handle_t *handle;
 	char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -62,11 +67,13 @@ static ifreader_t interface_open(const char *target, int channel) {
 		return NULL;
 	}
 
-	return handle;
+	instance->interface_data = handle;
+
+	return instance;
 }
 
 static bool interface_start(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = handle->interface_data;
 	if(descriptor->capture_packets == false) {
 		descriptor->capture_packets = true;
 		pthread_create(&descriptor->thread, NULL, &interface_thread_process_input, handle);
@@ -76,7 +83,7 @@ static bool interface_start(ifreader_t handle) {
 }
 
 static void interface_stop(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = handle->interface_data;
 	if(descriptor->capture_packets == true) {
 		descriptor->capture_packets = false;
 		pthread_join(descriptor->thread, NULL);
@@ -84,22 +91,24 @@ static void interface_stop(ifreader_t handle) {
 }
 
 static void interface_close(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = handle->interface_data;
 
 	interface_stop(handle);
 
 	pcap_close(descriptor->pc);
 	free(descriptor);
+	interfacemgr_destroy_handle(handle);
 }
 
 static void* interface_thread_process_input(void *data) {
-	interface_handle_t *descriptor = (interface_handle_t*)data;
+	ifreader_t handle = (ifreader_t)data;
+	interface_handle_t *descriptor = handle->interface_data;
 	int pcap_result;
 
 	fprintf(stderr, "PCAP reader started\n");
 
 	while(1) {
-		pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, NULL);
+		pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, (u_char*)handle);
 		if(!descriptor->capture_packets || pcap_result < 0) {
 			fprintf(stderr, "PCAP reader stopped\n");
 			pcap_perror(descriptor->pc, "PCAP end result");
@@ -111,7 +120,13 @@ static void* interface_thread_process_input(void *data) {
 }
 
 static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data) {
+	ifreader_t descriptor = (ifreader_t)param;
+
+//	if(header->caplen == header->len)
+//		sniffer_parser_parse_data(pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
+//	else sniffer_parser_parse_data(pkt_data, header->caplen, header->ts);
+
 	if(header->caplen == header->len)
-		sniffer_parser_parse_data(pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
-	else sniffer_parser_parse_data(pkt_data, header->caplen, header->ts);
+		interfacemgr_process_packet(descriptor, pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
+	else interfacemgr_process_packet(descriptor, pkt_data, header->caplen, header->ts);
 }
