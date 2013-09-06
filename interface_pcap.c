@@ -50,7 +50,6 @@ static void interface_init() {
 }
 
 static ifreader_t interface_open(const char *target, int channel) {
-	ifreader_t instance = interfacemgr_create_handle();
 	interface_handle_t *handle;
 	char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -67,6 +66,7 @@ static ifreader_t interface_open(const char *target, int channel) {
 		return NULL;
 	}
 
+	ifreader_t instance = interfacemgr_create_handle(target);
 	instance->interface_data = handle;
 
 	return instance;

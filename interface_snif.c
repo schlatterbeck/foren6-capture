@@ -100,11 +100,10 @@ static void sniffer_interface_init() {
 }
 
 static ifreader_t sniffer_interface_open(const char *target, int channel) {
-	ifreader_t ifinstance = interfacemgr_create_handle();
 	interface_handle_t *handle;
 	char byte;
 
-	ifinstance->interface_data = handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
+	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
 		return NULL;
 
@@ -133,6 +132,9 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 
 	handle->current_state = PRS_Magic;
 	handle->last_state = PRS_Done;
+
+	ifreader_t ifinstance = interfacemgr_create_handle(target);
+	ifinstance->interface_data = handle;
 
 	return ifinstance;
 }
