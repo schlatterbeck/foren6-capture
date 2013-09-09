@@ -41,6 +41,7 @@ typedef struct {
 	circular_buffer_t input_buffer;
 	pthread_mutex_t mutex;
 	int serial_line;
+	int channel;
 
 	//states
 	packet_read_state_e current_state;
@@ -101,7 +102,6 @@ static void sniffer_interface_init() {
 
 static ifreader_t sniffer_interface_open(const char *target, int channel) {
 	interface_handle_t *handle;
-	char byte;
 
 	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
@@ -115,16 +115,7 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 		return NULL;
 	}
 
-	//If it's a file, don't try to set any serial attribute nor write a sniffer command
-	if(isatty(handle->serial_line)) {
-		set_serial_attribs(handle->serial_line, B115200, 0);
-
-		write(handle->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
-		byte = channel + 0x20;
-		write(handle->serial_line, &byte, 1);
-		byte = '\n';
-		write(handle->serial_line, &byte, 1);
-	}
+	handle->channel = channel;
 
 	handle->input_buffer = circular_buffer_create(32, 1);
 	if(handle->input_buffer == NULL)
@@ -141,6 +132,19 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 
 static bool sniffer_interface_start(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle->interface_data;
+
+	//If it's a file, don't try to set any serial attribute nor write a sniffer command
+	if(isatty(descriptor->serial_line)) {
+		unsigned char byte;
+		set_serial_attribs(descriptor->serial_line, B115200, 0);
+
+		write(descriptor->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
+		byte = descriptor->channel + 0x20;
+		write(descriptor->serial_line, &byte, 1);
+		byte = '\n';
+		write(descriptor->serial_line, &byte, 1);
+	}
+
 	gettimeofday(&descriptor->start_time, NULL);
 	return desc_poll_add(descriptor->serial_line, &process_input, descriptor);
 }
@@ -148,6 +152,15 @@ static bool sniffer_interface_start(ifreader_t handle) {
 static void sniffer_interface_stop(ifreader_t handle) {
 	interface_handle_t *descriptor = (interface_handle_t*)handle->interface_data;
 	desc_poll_del(descriptor->serial_line);
+
+	//If it's a file, don't try to write a sniffer command
+	if(isatty(descriptor->serial_line)) {
+		unsigned char byte;
+		write(descriptor->serial_line, &disable_sniffer_cmd, 1);	//Disable sniffer
+		byte = '\n';
+		write(descriptor->serial_line, &byte, 1);
+	}
+
 	fprintf(stderr, "Stopped interface\n");
 }
 
