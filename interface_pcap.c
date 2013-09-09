@@ -85,8 +85,11 @@ static bool interface_start(ifreader_t handle) {
 static void interface_stop(ifreader_t handle) {
 	interface_handle_t *descriptor = handle->interface_data;
 	if(descriptor->capture_packets == true) {
+		struct timespec timeout = {3, 0};
+
 		descriptor->capture_packets = false;
-		pthread_join(descriptor->thread, NULL);
+
+		pthread_timedjoin_np(descriptor->thread, NULL, &timeout);
 	}
 }
 
