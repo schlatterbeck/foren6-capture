@@ -1,0 +1,13 @@
+Source: librplcapture-base
+Priority: extra
+Maintainer: Alexis Murzeau <am@lt-amurzeau.cetic.be>
+Build-Depends: debhelper (>= 8.0.0), libc6-dev (>= 2.3.6-6~), libpcap0.8-dev (>= 0.9.8)
+Standards-Version: 3.9.3
+Section: libs
+
+Package: librplcapture-base
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: RPL Analyzer - capture base plugins
+ This package propose support for PCAP and snif (used by TelosB with android-sniffer at http://rtn.sssup.it/index.php/software/seed-eye-apps/sniffer-154)

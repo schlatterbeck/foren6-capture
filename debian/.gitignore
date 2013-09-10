@@ -1,0 +1,13 @@
+# gitignore
+.stamp-bootstrap
+.directory
+*.log
+*.substvars
+*.debhelper
+stamp-*
+files
+
+#folders
+tmp
+librplanalyzer1
+librplanalyzer-dev
