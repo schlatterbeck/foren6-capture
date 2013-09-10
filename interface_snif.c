@@ -40,6 +40,7 @@ typedef enum {
 typedef struct {
 	circular_buffer_t input_buffer;
 	pthread_mutex_t mutex;
+	int lock_line;
 	int serial_line;
 	int channel;
 
@@ -108,6 +109,7 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 		return NULL;
 
 	pthread_mutex_init(&handle->mutex, NULL);
+	handle->lock_line = 0;
 
 	fprintf(stderr, "Opening %s\n", target);
 	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) < 0) {
@@ -146,7 +148,7 @@ static bool sniffer_interface_start(ifreader_t handle) {
 	}
 
 	gettimeofday(&descriptor->start_time, NULL);
-	return desc_poll_add(descriptor->serial_line, &process_input, descriptor);
+	return desc_poll_add(descriptor->serial_line, &process_input, handle);
 }
 
 static void sniffer_interface_stop(ifreader_t handle) {
@@ -170,6 +172,7 @@ static void sniffer_interface_close(ifreader_t handle) {
 	sniffer_interface_stop(handle);
 
 	pthread_mutex_lock(&descriptor->mutex);
+	descriptor->lock_line = __LINE__;
 
 	circular_buffer_delete(descriptor->input_buffer);
 	close(descriptor->serial_line);
@@ -189,6 +192,7 @@ static void process_input(int fd, void* handle) {
 
 	if(pthread_mutex_lock(&descriptor->mutex) != 0)
 		return;
+	descriptor->lock_line = __LINE__;
 	if(descriptor->serial_line < 0)
 		return;
 
