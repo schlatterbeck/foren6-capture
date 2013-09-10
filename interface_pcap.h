@@ -8,8 +8,9 @@
 #ifndef INTERFACE_PCAP_H
 #define	INTERFACE_PCAP_H
 
-#include <interface_reader/interfaces_register.h>
+#include <interface_reader/interfaces_mgr.h>
 
+int interface_get_version();
 interface_t interface_register();
 
 #endif	/* INTERFACE_PCAP_H */

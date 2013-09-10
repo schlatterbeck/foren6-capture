@@ -40,7 +40,9 @@ typedef enum {
 typedef struct {
 	circular_buffer_t input_buffer;
 	pthread_mutex_t mutex;
+	int lock_line;
 	int serial_line;
+	int channel;
 
 	//states
 	packet_read_state_e current_state;
@@ -70,10 +72,14 @@ static void sniffer_interface_stop(ifreader_t handle);
 static void sniffer_interface_close(ifreader_t handle);
 
 static void process_input(int fd, void* handle);
-static bool read_input(interface_handle_t* descriptor);
+static bool read_input(ifreader_t descriptor);
 static bool can_read_byte(interface_handle_t* descriptor);
 static unsigned char get_byte(interface_handle_t* descriptor);
 static void set_serial_attribs(int fd, int baudrate, int parity);
+
+int interface_get_version() {
+	return 1;
+}
 
 interface_t interface_register() {
 	interface_t interface;
@@ -97,13 +103,13 @@ static void sniffer_interface_init() {
 
 static ifreader_t sniffer_interface_open(const char *target, int channel) {
 	interface_handle_t *handle;
-	char byte;
 
 	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
 	if(!handle)
 		return NULL;
 
 	pthread_mutex_init(&handle->mutex, NULL);
+	handle->lock_line = 0;
 
 	fprintf(stderr, "Opening %s\n", target);
 	if((handle->serial_line = open(target, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK)) < 0) {
@@ -111,16 +117,7 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 		return NULL;
 	}
 
-	//If it's a file, don't try to set any serial attribute nor write a sniffer command
-	if(isatty(handle->serial_line)) {
-		set_serial_attribs(handle->serial_line, B115200, 0);
-
-		write(handle->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
-		byte = channel + 0x20;
-		write(handle->serial_line, &byte, 1);
-		byte = '\n';
-		write(handle->serial_line, &byte, 1);
-	}
+	handle->channel = channel;
 
 	handle->input_buffer = circular_buffer_create(32, 1);
 	if(handle->input_buffer == NULL)
@@ -129,27 +126,53 @@ static ifreader_t sniffer_interface_open(const char *target, int channel) {
 	handle->current_state = PRS_Magic;
 	handle->last_state = PRS_Done;
 
-	return handle;
+	ifreader_t ifinstance = interfacemgr_create_handle(target);
+	ifinstance->interface_data = handle;
+
+	return ifinstance;
 }
 
 static bool sniffer_interface_start(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = (interface_handle_t*)handle->interface_data;
+
+	//If it's a file, don't try to set any serial attribute nor write a sniffer command
+	if(isatty(descriptor->serial_line)) {
+		unsigned char byte;
+		set_serial_attribs(descriptor->serial_line, B115200, 0);
+
+		write(descriptor->serial_line, &enable_sniffer_cmd, 1);	//Enable sniffer
+		byte = descriptor->channel + 0x20;
+		write(descriptor->serial_line, &byte, 1);
+		byte = '\n';
+		write(descriptor->serial_line, &byte, 1);
+	}
+
 	gettimeofday(&descriptor->start_time, NULL);
-	return desc_poll_add(descriptor->serial_line, &process_input, descriptor);
+	return desc_poll_add(descriptor->serial_line, &process_input, handle);
 }
 
 static void sniffer_interface_stop(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = (interface_handle_t*)handle->interface_data;
 	desc_poll_del(descriptor->serial_line);
+
+	//If it's a file, don't try to write a sniffer command
+	if(isatty(descriptor->serial_line)) {
+		unsigned char byte;
+		write(descriptor->serial_line, &disable_sniffer_cmd, 1);	//Disable sniffer
+		byte = '\n';
+		write(descriptor->serial_line, &byte, 1);
+	}
+
 	fprintf(stderr, "Stopped interface\n");
 }
 
 static void sniffer_interface_close(ifreader_t handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = (interface_handle_t*)handle->interface_data;
 
 	sniffer_interface_stop(handle);
 
 	pthread_mutex_lock(&descriptor->mutex);
+	descriptor->lock_line = __LINE__;
 
 	circular_buffer_delete(descriptor->input_buffer);
 	close(descriptor->serial_line);
@@ -160,18 +183,21 @@ static void sniffer_interface_close(ifreader_t handle) {
 	pthread_mutex_destroy(&descriptor->mutex);
 
 	free(descriptor);
+
+	interfacemgr_destroy_handle(handle);
 }
 
 static void process_input(int fd, void* handle) {
-	interface_handle_t *descriptor = (interface_handle_t*)handle;
+	interface_handle_t *descriptor = (interface_handle_t*)((ifreader_t)handle)->interface_data;
 
 	if(pthread_mutex_lock(&descriptor->mutex) != 0)
 		return;
+	descriptor->lock_line = __LINE__;
 	if(descriptor->serial_line < 0)
 		return;
 
 	//Read input until our buffer is full or there is no more data to read
-	while(read_input(descriptor) == true);
+	while(read_input(handle) == true);
 
 
 	//Parse input until there is no more data to parse
@@ -329,7 +355,8 @@ static void process_input(int fd, void* handle) {
 	pthread_mutex_unlock(&descriptor->mutex);
 }
 
-static bool read_input(interface_handle_t* descriptor) {
+static bool read_input(ifreader_t handle) {
+	interface_handle_t* descriptor = (interface_handle_t*)handle->interface_data;
 	unsigned char data;
 	size_t nbread;
 
@@ -341,7 +368,7 @@ static bool read_input(interface_handle_t* descriptor) {
 			circular_buffer_push_front(descriptor->input_buffer, &data);
 			return true;
 		} else if(nbread == 0 && errno != EAGAIN) {
-			sniffer_interface_stop(descriptor);
+			sniffer_interface_stop(handle);
 			fprintf(stderr, "File read completed\n");
 			perror("Stop interface");
 		}
