@@ -89,7 +89,10 @@ static void interface_stop(ifreader_t handle) {
 
 		descriptor->capture_packets = false;
 
-		pthread_timedjoin_np(descriptor->thread, NULL, &timeout);
+		if(pthread_timedjoin_np(descriptor->thread, NULL, &timeout) != 0) {
+			pthread_cancel(descriptor->thread);
+			pthread_join(descriptor->thread, NULL);
+		}
 	}
 }
 
