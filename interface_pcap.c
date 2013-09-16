@@ -8,6 +8,9 @@
 #include <pthread.h>
 #include <string.h>
 
+#if __APPLE__
+#define pthread_timedjoin_np(...) (1)
+#endif
 
 static const char *interface_name = "pcap";
 
