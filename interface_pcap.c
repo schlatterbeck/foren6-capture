@@ -72,6 +72,16 @@ static ifreader_t interface_open(const char *target, int channel) {
 	ifreader_t instance = interfacemgr_create_handle(target);
 	instance->interface_data = handle;
 
+    if (pcap_datalink (handle->pc) == DLT_EN10MB)
+    {
+      instance->ethernet = true;
+    }
+    else if (pcap_datalink (handle->pc) != DLT_IEEE802_15_4)
+	{
+        fprintf (stderr, "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n", pcap_datalink (handle->pc));
+        free(handle);
+        return NULL;
+	 }
 	return instance;
 }
 
@@ -131,11 +141,13 @@ static void* interface_thread_process_input(void *data) {
 static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data) {
 	ifreader_t descriptor = (ifreader_t)param;
 
-//	if(header->caplen == header->len)
-//		sniffer_parser_parse_data(pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
-//	else sniffer_parser_parse_data(pkt_data, header->caplen, header->ts);
-
-	if(header->caplen == header->len)
-		interfacemgr_process_packet(descriptor, pkt_data, header->caplen-2, header->ts);  //Never include the FCS in packets
-	else interfacemgr_process_packet(descriptor, pkt_data, header->caplen, header->ts);
+	const u_char * pkt_data_802_15_4 = descriptor->ethernet ? pkt_data + 14 : pkt_data;
+	int len = header->caplen == header->len ? header->caplen-2 : header->caplen;  //Never include the FCS in packets
+	if ( descriptor->ethernet ) {
+	    len -= 14;
+	}
+    if (descriptor->ethernet && (pkt_data[12] != 0x80 || pkt_data[13] != 0x9a)) {
+      return;
+    }
+    interfacemgr_process_packet(descriptor, pkt_data_802_15_4, len, header->ts);
 }
