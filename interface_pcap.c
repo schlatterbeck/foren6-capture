@@ -7,6 +7,7 @@
 #include <pcap/pcap.h>
 #include <pthread.h>
 #include <string.h>
+#include <errno.h>
 
 #if __APPLE__
 #define pthread_timedjoin_np(...) (1)
@@ -15,9 +16,11 @@
 static const char *interface_name = "pcap";
 
 typedef struct {
+    FILE *pf;
 	pcap_t *pc;
 	bool capture_packets;
 	pthread_t thread;
+	long first_offset;
 } interface_handle_t; //*ifreader_t
 
 static void interface_init();
@@ -62,9 +65,16 @@ static ifreader_t interface_open(const char *target, int channel) {
 
 	handle->capture_packets = false;
 
-	handle->pc = pcap_open_offline(target, errbuf);
+	handle->pf = fopen(target, "r");
+    if(handle->pf == NULL) {
+        fprintf(stderr, "Cannot open target %s: %s\n", target, strerror(errno));
+        free(handle);
+        return NULL;
+    }
+	handle->pc = pcap_fopen_offline(handle->pf, errbuf);
 	if(handle->pc == NULL) {
-		fprintf(stderr, "Cannot open target %s: %s\n", target, errbuf);
+		fprintf(stderr, "Cannot read target %s: %s\n", target, errbuf);
+		fclose(handle->pf);
 		free(handle);
 		return NULL;
 	}
@@ -82,6 +92,7 @@ static ifreader_t interface_open(const char *target, int channel) {
         free(handle);
         return NULL;
 	 }
+    handle->first_offset = ftell(handle->pf);
 	return instance;
 }
 
@@ -89,6 +100,9 @@ static bool interface_start(ifreader_t handle) {
 	interface_handle_t *descriptor = handle->interface_data;
 	if(descriptor->capture_packets == false) {
 		descriptor->capture_packets = true;
+		if ( fseek(descriptor->pf, descriptor->first_offset, SEEK_SET) == -1) {
+	        fprintf(stderr, "warning, fseek() failed : %s\n", strerror(errno));
+		}
 		pthread_create(&descriptor->thread, NULL, &interface_thread_process_input, handle);
 	}
 
@@ -115,6 +129,7 @@ static void interface_close(ifreader_t handle) {
 	interface_stop(handle);
 
 	pcap_close(descriptor->pc);
+	fclose(descriptor->pf);
 	free(descriptor);
 	interfacemgr_destroy_handle(handle);
 }
