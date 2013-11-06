@@ -138,6 +138,7 @@ static void* interface_thread_process_input(void *data) {
 	ifreader_t handle = (ifreader_t)data;
 	interface_handle_t *descriptor = handle->interface_data;
 	int pcap_result;
+	int counter = 0;
 
 	fprintf(stderr, "PCAP reader started\n");
 
@@ -148,8 +149,12 @@ static void* interface_thread_process_input(void *data) {
 			pcap_perror(descriptor->pc, "PCAP end result");
 			return NULL;
 		}
-		if(pcap_result == 0)
+		if(pcap_result == 0) {
 			usleep(100000);
+		} else {
+		  counter++;
+		  if ( counter % 100 == 0 ) usleep(1000);
+		}
 	}
 }
 
