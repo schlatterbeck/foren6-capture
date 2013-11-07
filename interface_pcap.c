@@ -181,7 +181,6 @@ interface_close(ifreader_t handle)
     interface_stop(handle);
 
     pcap_close(descriptor->pc);
-    fclose(descriptor->pf);
     free(descriptor);
     interfacemgr_destroy_handle(handle);
 }
