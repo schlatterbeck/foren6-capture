@@ -34,13 +34,13 @@
  *         Foren6 Team <foren6@cetic.be>
  */
 
-#ifndef INTERFACE_REGISTER_TELOS_H
-#define	INTERFACE_REGISTER_TELOS_H
+#ifndef INTERFACE_SNIF_H
+#define	INTERFACE_SNIF_H
 
 #include <interface_reader/interfaces_mgr.h>
 
 int interface_get_version();
 interface_t interface_register();
 
-#endif	/* INTERFACE_REGISTER_TELOS_H */
+#endif	/* INTERFACE_SNIF_H */
 
