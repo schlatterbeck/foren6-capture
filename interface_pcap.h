@@ -42,5 +42,4 @@
 int interface_get_version();
 interface_t interface_register();
 
-#endif	/* INTERFACE_PCAP_H */
-
+#endif /* INTERFACE_PCAP_H */
