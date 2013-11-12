@@ -1,3 +1,39 @@
+/*
+ * Copyright (c) 2013, CETIC.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+/**
+ * \file
+ *         PCAP input interface
+ * \author
+ *         Foren6 Team <foren6@cetic.be>
+ */
+
 #include "interface_pcap.h"
 
 #include <stdio.h>
@@ -17,11 +53,11 @@ static const char *interface_name = "pcap";
 
 typedef struct {
     FILE *pf;
-	pcap_t *pc;
-	bool capture_packets;
-	pthread_t thread;
-	long first_offset;
-} interface_handle_t; //*ifreader_t
+    pcap_t *pc;
+    bool capture_packets;
+    pthread_t thread;
+    long first_offset;
+} interface_handle_t;           //*ifreader_t
 
 static void interface_init();
 static ifreader_t interface_open(const char *target, int channel);
@@ -29,145 +65,169 @@ static bool interface_start(ifreader_t handle);
 static void interface_stop(ifreader_t handle);
 static void interface_close(ifreader_t handle);
 static void *interface_thread_process_input(void *data);
-static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
+static void interface_packet_handler(u_char * param,
+                                     const struct pcap_pkthdr *header,
+                                     const u_char * pkt_data);
 
-int interface_get_version() {
-	return 1;
+int
+interface_get_version()
+{
+    return 1;
 }
 
-interface_t interface_register() {
-	interface_t interface;
+interface_t
+interface_register()
+{
+    interface_t interface;
 
-	memset(&interface, 0, sizeof(interface));
+    memset(&interface, 0, sizeof(interface));
 
-	interface.interface_name = interface_name;
-	interface.init = &interface_init;
-	interface.open = &interface_open;
-	interface.close = &interface_close;
-	interface.start = &interface_start;
-	interface.stop = &interface_stop;
+    interface.interface_name = interface_name;
+    interface.init = &interface_init;
+    interface.open = &interface_open;
+    interface.close = &interface_close;
+    interface.start = &interface_start;
+    interface.stop = &interface_stop;
 
-	return interface;
+    return interface;
 }
 
-static void interface_init() {
-	desc_poll_init();
-	fprintf(stderr, "%s interface initialized\n", interface_name);
+static void
+interface_init()
+{
+    desc_poll_init();
+    fprintf(stderr, "%s interface initialized\n", interface_name);
 }
 
-static ifreader_t interface_open(const char *target, int channel) {
-	interface_handle_t *handle;
-	char errbuf[PCAP_ERRBUF_SIZE];
+static ifreader_t
+interface_open(const char *target, int channel)
+{
+    interface_handle_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
 
-	handle = (interface_handle_t*) calloc(1, sizeof(interface_handle_t));
-	if(!handle)
-		return NULL;
+    handle = (interface_handle_t *) calloc(1, sizeof(interface_handle_t));
+    if(!handle)
+        return NULL;
 
-	handle->capture_packets = false;
+    handle->capture_packets = false;
 
-	handle->pf = fopen(target, "r");
+    handle->pf = fopen(target, "r");
     if(handle->pf == NULL) {
         fprintf(stderr, "Cannot open target %s: %s\n", target, strerror(errno));
         free(handle);
         return NULL;
     }
-	handle->pc = pcap_fopen_offline(handle->pf, errbuf);
-	if(handle->pc == NULL) {
-		fprintf(stderr, "Cannot read target %s: %s\n", target, errbuf);
-		fclose(handle->pf);
-		free(handle);
-		return NULL;
-	}
-
-	ifreader_t instance = interfacemgr_create_handle(target);
-	instance->interface_data = handle;
-
-    if (pcap_datalink (handle->pc) == DLT_EN10MB)
-    {
-      instance->ethernet = true;
-    }
-    else if (pcap_datalink (handle->pc) != DLT_IEEE802_15_4)
-	{
-        fprintf (stderr, "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n", pcap_datalink (handle->pc));
+    handle->pc = pcap_fopen_offline(handle->pf, errbuf);
+    if(handle->pc == NULL) {
+        fprintf(stderr, "Cannot read target %s: %s\n", target, errbuf);
+        fclose(handle->pf);
         free(handle);
         return NULL;
-	 }
+    }
+
+    ifreader_t instance = interfacemgr_create_handle(target);
+    instance->interface_data = handle;
+
+    if(pcap_datalink(handle->pc) == DLT_EN10MB) {
+        instance->ethernet = true;
+    } else if(pcap_datalink(handle->pc) != DLT_IEEE802_15_4) {
+        fprintf(stderr,
+                "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n",
+                pcap_datalink(handle->pc));
+        free(handle);
+        return NULL;
+    }
     handle->first_offset = ftell(handle->pf);
-	return instance;
+    return instance;
 }
 
-static bool interface_start(ifreader_t handle) {
-	interface_handle_t *descriptor = handle->interface_data;
-	if(descriptor->capture_packets == false) {
-		descriptor->capture_packets = true;
-		if ( fseek(descriptor->pf, descriptor->first_offset, SEEK_SET) == -1) {
-	        fprintf(stderr, "warning, fseek() failed : %s\n", strerror(errno));
-		}
-		pthread_create(&descriptor->thread, NULL, &interface_thread_process_input, handle);
-	}
+static bool
+interface_start(ifreader_t handle)
+{
+    interface_handle_t *descriptor = handle->interface_data;
 
-	return true;
+    if(descriptor->capture_packets == false) {
+        descriptor->capture_packets = true;
+        if(fseek(descriptor->pf, descriptor->first_offset, SEEK_SET) == -1) {
+            fprintf(stderr, "warning, fseek() failed : %s\n", strerror(errno));
+        }
+        pthread_create(&descriptor->thread, NULL, &interface_thread_process_input, handle);
+    }
+    return true;
 }
 
-static void interface_stop(ifreader_t handle) {
-	interface_handle_t *descriptor = handle->interface_data;
-	if(descriptor->capture_packets == true) {
-		struct timespec timeout = {3, 0};
+static void
+interface_stop(ifreader_t handle)
+{
+    interface_handle_t *descriptor = handle->interface_data;
 
-		descriptor->capture_packets = false;
+    if(descriptor->capture_packets == true) {
+        struct timespec timeout = { 3, 0 };
 
-		if(pthread_timedjoin_np(descriptor->thread, NULL, &timeout) != 0) {
-			pthread_cancel(descriptor->thread);
-			pthread_join(descriptor->thread, NULL);
-		}
-	}
+        descriptor->capture_packets = false;
+
+        if(pthread_timedjoin_np(descriptor->thread, NULL, &timeout) != 0) {
+            pthread_cancel(descriptor->thread);
+            pthread_join(descriptor->thread, NULL);
+        }
+    }
 }
 
-static void interface_close(ifreader_t handle) {
-	interface_handle_t *descriptor = handle->interface_data;
+static void
+interface_close(ifreader_t handle)
+{
+    interface_handle_t *descriptor = handle->interface_data;
 
-	interface_stop(handle);
+    interface_stop(handle);
 
-	pcap_close(descriptor->pc);
-	fclose(descriptor->pf);
-	free(descriptor);
-	interfacemgr_destroy_handle(handle);
+    pcap_close(descriptor->pc);
+    fclose(descriptor->pf);
+    free(descriptor);
+    interfacemgr_destroy_handle(handle);
 }
 
-static void* interface_thread_process_input(void *data) {
-	ifreader_t handle = (ifreader_t)data;
-	interface_handle_t *descriptor = handle->interface_data;
-	int pcap_result;
-	int counter = 0;
+static void *
+interface_thread_process_input(void *data)
+{
+    ifreader_t handle = (ifreader_t) data;
+    interface_handle_t *descriptor = handle->interface_data;
+    int pcap_result;
+    int counter = 0;
 
-	fprintf(stderr, "PCAP reader started\n");
+    fprintf(stderr, "PCAP reader started\n");
 
-	while(1) {
-		pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, (u_char*)handle);
-		if(!descriptor->capture_packets || pcap_result < 0) {
-			fprintf(stderr, "PCAP reader stopped\n");
-			pcap_perror(descriptor->pc, "PCAP end result");
-			return NULL;
-		}
-		if(pcap_result == 0) {
-			usleep(100000);
-		} else {
-		  counter++;
-		  if ( counter % 100 == 0 ) usleep(1000);
-		}
-	}
+    while(1) {
+        pcap_result = pcap_dispatch(descriptor->pc, 1, &interface_packet_handler, (u_char *) handle);
+        if(!descriptor->capture_packets || pcap_result < 0) {
+            fprintf(stderr, "PCAP reader stopped\n");
+            pcap_perror(descriptor->pc, "PCAP end result");
+            return NULL;
+        }
+        if(pcap_result == 0) {
+            usleep(100000);
+        } else {
+            counter++;
+            if(counter % 100 == 0)
+                usleep(1000);
+        }
+    }
 }
 
-static void interface_packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data) {
-	ifreader_t descriptor = (ifreader_t)param;
+static void
+interface_packet_handler(u_char * param, const struct pcap_pkthdr *header, const u_char * pkt_data)
+{
+    ifreader_t descriptor = (ifreader_t) param;
 
-	const u_char * pkt_data_802_15_4 = descriptor->ethernet ? pkt_data + 14 : pkt_data;
-	int len = header->caplen == header->len ? header->caplen-2 : header->caplen;  //Never include the FCS in packets
-	if ( descriptor->ethernet ) {
-	    len -= 14;
-	}
-    if (descriptor->ethernet && (pkt_data[12] != 0x80 || pkt_data[13] != 0x9a)) {
-      return;
+    const u_char *pkt_data_802_15_4 = descriptor->ethernet ? pkt_data + 14 : pkt_data;
+
+    //Never include the FCS in packets
+    int len = header->caplen == header->len ? header->caplen - 2 : header->caplen;
+
+    if(descriptor->ethernet) {
+        len -= 14;
+    }
+    if(descriptor->ethernet && (pkt_data[12] != 0x80 || pkt_data[13] != 0x9a)) {
+        return;
     }
     interfacemgr_process_packet(descriptor, pkt_data_802_15_4, len, header->ts);
 }
