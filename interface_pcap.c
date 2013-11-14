@@ -49,6 +49,10 @@
 #define pthread_timedjoin_np(...) (1)
 #endif
 
+#ifndef DLT_IEEE802_15_4_NOFCS
+#define DLT_IEEE802_15_4_NOFCS 230
+#endif
+
 static const char *interface_name = "pcap";
 
 typedef struct {
@@ -130,7 +134,13 @@ interface_open(const char *target, int channel)
 
     if(pcap_datalink(handle->pc) == DLT_EN10MB) {
         instance->ethernet = true;
-    } else if(pcap_datalink(handle->pc) != DLT_IEEE802_15_4) {
+    } else if(pcap_datalink(handle->pc) == DLT_IEEE802_15_4 ) {
+        instance->ethernet = false;
+        instance->fcs = true;
+    } else if ( pcap_datalink(handle->pc) == DLT_IEEE802_15_4_NOFCS) {
+        instance->ethernet = false;
+        instance->fcs = false;
+    } else {
         fprintf(stderr,
                 "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n",
                 pcap_datalink(handle->pc));
