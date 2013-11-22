@@ -215,12 +215,18 @@ interface_thread_process_input(void *data)
 static void
 interface_packet_handler(u_char * param, const struct pcap_pkthdr *header, const u_char * pkt_data)
 {
+    int len;
     ifreader_t descriptor = (ifreader_t) param;
 
     const u_char *pkt_data_802_15_4 = descriptor->ethernet ? pkt_data + 14 : pkt_data;
 
-    //Never include the FCS in packets
-    int len = header->caplen == header->len ? header->caplen - 2 : header->caplen;
+    //FCS truncation, if present
+    if(descriptor->fcs){
+        len = header->caplen == header->len ? header->caplen - 2 : header->caplen;
+    }
+    else{
+        len = header->caplen;
+    }
 
     if(descriptor->ethernet) {
         len -= 14;
