@@ -172,6 +172,9 @@ sniffer_interface_start(ifreader_t handle)
     if(isatty(descriptor->serial_line)) {
         unsigned char byte;
         set_serial_attribs(descriptor->serial_line, 460800, 0);
+        write(descriptor->serial_line, expected_magic, 4);
+        byte = SNIFFER_PROTO_VERSION;
+        write(descriptor->serial_line, &byte, 1);
         byte = CMD_SET_CHANNEL;
         write(descriptor->serial_line, &byte, 1);
         byte = 1; //Command len
@@ -344,7 +347,7 @@ process_input(int fd, void *handle)
                     pkt_time.tv_sec = pkt_time.tv_sec - descriptor->start_time.tv_sec;
                     pkt_time.tv_usec = pkt_time.tv_usec - descriptor->start_time.tv_usec;
                 }
-                sniffer_parser_parse_data(descriptor->pkt_data, descriptor->pkt_len, pkt_time);
+                sniffer_parser_parse_data(descriptor->pkt_data, descriptor->pkt_len - 2, pkt_time);
             }
             descriptor->current_state = PRS_Magic;
             break;
