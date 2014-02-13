@@ -158,6 +158,7 @@ sniffer_interface_open(const char *target, int channel)
 
     ifreader_t ifinstance = interfacemgr_create_handle(target);
     ifinstance->interface_data = handle;
+    ifinstance->fcs = false;
 
     return ifinstance;
 }
