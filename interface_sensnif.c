@@ -181,6 +181,7 @@ sniffer_interface_start(ifreader_t handle)
         write(descriptor->serial_line, &byte, 1);
         byte = descriptor->channel;
         write(descriptor->serial_line, &byte, 1);
+        printf("Channel set\n");
     } else {
         fprintf(stderr, "Device is not a tty\n");
     }
@@ -266,13 +267,16 @@ process_input(int fd, void *handle)
                     descriptor->pkt_received_index++;
                     descriptor->legacy = 1;
                 } else {
+                    printf("Invalid first magic: %x\n", descriptor->pkt_magic[0]);
                     descriptor->pkt_received_index = 0;
                 }
             } else if(! descriptor->legacy && descriptor->pkt_magic[descriptor->pkt_received_index] != expected_magic[descriptor->pkt_received_index]) {
                 //Invalid magic number -> reset received packet getByte(serial_line) until we have the magic sequence
+                printf("Invalid magic: %x vs %x\n", descriptor->pkt_magic[descriptor->pkt_received_index], expected_magic[descriptor->pkt_received_index]);
                 descriptor->pkt_received_index = 0;
             } else if(descriptor->legacy && descriptor->pkt_magic[descriptor->pkt_received_index] != expected_magic_legacy[descriptor->pkt_received_index]) {
                 //Invalid magic number -> reset received packet getByte(serial_line) until we have the magic sequence
+                printf("Invalid legacy magic: %x vs %x\n", descriptor->pkt_magic[descriptor->pkt_received_index], expected_magic_legacy[descriptor->pkt_received_index]);
                 descriptor->pkt_received_index = 0;
             } else {
                 descriptor->pkt_received_index++;
