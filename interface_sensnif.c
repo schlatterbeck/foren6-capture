@@ -64,6 +64,7 @@ typedef struct {
     pthread_mutex_t mutex;
     int lock_line;
     int serial_line;
+    int baudrate;
     int channel;
 
     //states
@@ -87,7 +88,7 @@ typedef struct {
 } interface_handle_t;           //*ifreader_t
 
 static void sniffer_interface_init();
-static ifreader_t sniffer_interface_open(const char *target, int channel);
+static ifreader_t sniffer_interface_open(const char *target, int channel, int baudrate);
 static bool sniffer_interface_start(ifreader_t handle);
 static void sniffer_interface_stop(ifreader_t handle);
 static void sniffer_interface_close(ifreader_t handle);
@@ -128,7 +129,7 @@ sniffer_interface_init()
 }
 
 static ifreader_t
-sniffer_interface_open(const char *target, int channel)
+sniffer_interface_open(const char *target, int channel, int baudrate)
 {
     interface_handle_t *handle;
 
@@ -147,6 +148,11 @@ sniffer_interface_open(const char *target, int channel)
     }
 
     handle->channel = channel;
+    handle->baudrate = interfacemgr_baudrate_to_const(baudrate);
+    if(handle->baudrate == 0) {
+        fprintf(stderr, "Baudrate %d not supported\n", baudrate);
+        return NULL;
+    }
 
     handle->input_buffer = circular_buffer_create(32, 1);
     if(handle->input_buffer == NULL) {
@@ -171,7 +177,7 @@ sniffer_interface_start(ifreader_t handle)
     //If it's a file, don't try to set any serial attribute nor write a sniffer command
     if(isatty(descriptor->serial_line)) {
         unsigned char byte;
-        set_serial_attribs(descriptor->serial_line, 460800, 0);
+        set_serial_attribs(descriptor->serial_line, descriptor->baudrate, 0);
         write(descriptor->serial_line, expected_magic, 4);
         byte = SNIFFER_PROTO_VERSION;
         write(descriptor->serial_line, &byte, 1);
