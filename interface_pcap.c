@@ -44,6 +44,7 @@
 #endif
 
 static const char *interface_name = "pcap";
+static const unsigned int interface_parameters = INTERFACE_DEVICE;
 
 typedef struct {
     FILE *pf;
@@ -77,6 +78,7 @@ interface_register()
     memset(&interface, 0, sizeof(interface));
 
     interface.interface_name = interface_name;
+    interface.parameters = interface_parameters;
     interface.init = &interface_init;
     interface.open = &interface_open;
     interface.close = &interface_close;

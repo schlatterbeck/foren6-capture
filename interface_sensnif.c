@@ -112,6 +112,7 @@ interface_register()
     memset(&interface, 0, sizeof(interface));
 
     interface.interface_name = "sensnif";
+    interface.parameters = INTERFACE_DEVICE | INTERFACE_CHANNEL | INTERFACE_BAUDRATE;
     interface.init = &sniffer_interface_init;
     interface.open = &sniffer_interface_open;
     interface.close = &sniffer_interface_close;
