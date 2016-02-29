@@ -91,7 +91,6 @@ interface_register()
 static void
 interface_init()
 {
-    desc_poll_init();
     fprintf(stderr, "%s interface initialized\n", interface_name);
 }
 
@@ -139,6 +138,7 @@ interface_open(const char *target, int channel, int baudrate)
         fprintf(stderr,
                 "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n",
                 pcap_datalink(handle->pc));
+        interfacemgr_destroy_handle(instance);
         free(handle);
         return NULL;
     }
