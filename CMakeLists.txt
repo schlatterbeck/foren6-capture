@@ -28,7 +28,7 @@ find_package(LIBUSB REQUIRED)
 
 message("Using ${RPLANALYZER_LIBRARIES}")
 
-include_directories(${RPLANALYZER_INCLUDE_DIRS} ${LibUSB_INCLUDE_DIRS})
+include_directories(${RPLANALYZER_INCLUDE_DIRS} ${PCAP_INCLUDE_DIRS} ${LibUSB_INCLUDE_DIRS})
 
 file(GLOB capture_shared_objects_src RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.c)
 
