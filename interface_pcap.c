@@ -126,17 +126,18 @@ interface_open(const char *target, int channel, int baudrate)
     ifreader_t instance = interfacemgr_create_handle(target);
     instance->interface_data = handle;
 
-    if(pcap_datalink(handle->pc) == DLT_EN10MB) {
-        instance->ethernet = true;
-    } else if(pcap_datalink(handle->pc) == DLT_IEEE802_15_4 ) {
-        instance->ethernet = false;
+    if (pcap_datalink(handle->pc) == DLT_EN10MB || pcap_datalink(handle->pc) == DLT_LINUX_SLL) {
+        instance->encap_dlt = pcap_datalink(handle->pc);
+    } else if(pcap_datalink(handle->pc) == DLT_IEEE802_15_4) {
+        instance->encap_dlt = -1;
         instance->fcs = true;
-    } else if ( pcap_datalink(handle->pc) == DLT_IEEE802_15_4_NOFCS) {
-        instance->ethernet = false;
+    } else if (pcap_datalink(handle->pc) == DLT_IEEE802_15_4_NOFCS) {
+        instance->encap_dlt = -1;
         instance->fcs = false;
     } else {
         fprintf(stderr,
-                "This program only supports 802.15.4 and Ethernet encapsulated 802.15.4 sniffers (DLT: %d)\n",
+                "This program only supports 802.15.4 and Ethernet or Linux \"cooked\" "
+                "encapsulated 802.15.4 sniffers (DLT: %d)\n",
                 pcap_datalink(handle->pc));
         interfacemgr_destroy_handle(instance);
         free(handle);
@@ -217,13 +218,24 @@ interface_thread_process_input(void *data)
     }
 }
 
+inline int _get_encap_header_size(int encap_dlt) {
+    switch (encap_dlt) {
+        case DLT_EN10MB:
+            return 14;
+        case DLT_LINUX_SLL:
+            return 16;
+        default:
+            return 0;
+    }
+}
+
 static void
 interface_packet_handler(u_char * param, const struct pcap_pkthdr *header, const u_char * pkt_data)
 {
     int len;
     ifreader_t descriptor = (ifreader_t) param;
 
-    const u_char *pkt_data_802_15_4 = descriptor->ethernet ? pkt_data + 14 : pkt_data;
+    const u_char *pkt_data_802_15_4 = pkt_data + _get_encap_header_size(descriptor->encap_dlt);
 
     //FCS truncation, if present
     if(descriptor->fcs){
@@ -233,11 +245,18 @@ interface_packet_handler(u_char * param, const struct pcap_pkthdr *header, const
         len = header->caplen;
     }
 
-    if(descriptor->ethernet) {
-        len -= 14;
-    }
-    if(descriptor->ethernet && (pkt_data[12] != 0x80 || pkt_data[13] != 0x9a)) {
-        return;
+    len -= _get_encap_header_size(descriptor->encap_dlt);
+    switch (descriptor->encap_dlt) {
+        case DLT_EN10MB:
+            if (pkt_data[12] != 0x80 || pkt_data[13] != 0x9a) {
+                return;
+            }
+            break;
+        case DLT_LINUX_SLL:
+            if (pkt_data[15] != 0xf6) {
+                return;
+            }
+            break;
     }
     interfacemgr_process_packet(descriptor, pkt_data_802_15_4, len, header->ts);
 }
